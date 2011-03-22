@@ -1,0 +1,241 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+<head>
+  <title>Parabolic Knapsack</title>
+  <style type="text/css">
+    input {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h3>Parabolic Knapsack</h3>
+  <input id="solve-random-many" type="button" value="Solve Random Continues"/>
+  <input id="solve-random" type="button" value="Solve Random"/>
+  <input id="solve-sort" type="button" value="Solve Sort"/>
+  <input id="new-input" type="button" value="New Input + Solve Random"/>
+	<canvas width="400" height="400" id="knapsack">
+  Your browser doesn't support HTML5 Canvas.
+  </canvas>
+  
+	<script src="processing-1.1.0.js" type="text/javascript"></script>
+
+	<script type="text/javascript">
+
+// shuffle array in place
+shuffle = function(o) { for (var j, x, i = o.length; i; j = parseInt(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x); return o; };
+
+var size = 400,
+    buckets = 20,
+    items = 40,
+    maxItemSize = 200;
+
+function parabola(y) {
+  return Math.sqrt((size - y) * size) / 2;
+}
+
+function rndLinear(max) {
+  return Math.floor(Math.random() * (max + 1));
+}
+
+function rndSquare(max) {
+  return Math.floor(Math.random() * Math.random() * (max + 1));
+}
+
+function Knapsack(size, count, xFun) {
+  function generateInput(items, max, rnd) {
+    var data = [];
+    for (var i = 0; i < items; i++) {
+      data.push(rnd(max));
+    }
+    return data;
+  }
+
+  function solve(buckets, input) {
+    buckets = buckets.slice();
+
+    var buckets_length = buckets.length,
+        results = [];
+    
+    for (var b = 0; b < buckets_length; b++) {
+      results[b] = [];
+    }
+
+    input.forEach(function(blockSize) {
+      var b = buckets_length - 1;
+      while (b > 0) {
+        if (blockSize <= buckets[b]) {
+          results[b].push(blockSize);
+          buckets[b] -= blockSize;
+          break;
+        }
+        b--;
+      }
+    });
+    
+    return results;
+  }
+
+  function makeBuckets() {
+    var segment = size / (count + 1),
+        y = segment;
+
+    var buckets = [];
+        
+    for (var i = 0; i < count; i++) {
+      buckets.push(xFun(y) * 2);
+      y += segment;
+    }
+    
+    return buckets
+  };
+
+  function score(buckets, results) {
+    var wasted = 0,
+        first = false;
+    
+    results.forEach(function(result, i) {
+      // only count wasted space after the top most piece
+      if (result.length) {
+        first = true;
+      } else {
+        var used = 0;
+        
+        result.forEach(function(blockSize) {
+          used += blockSize;
+        });
+        
+        wasted += buckets[i] - used;
+      }
+    });
+    
+    return wasted;
+  }
+
+  var results = [];
+
+  this.randomAlgorithm = function() {
+    var input = this.input.slice();
+    shuffle(input); 
+
+    var results = solve(this.buckets, input);
+    this.results = function() { return results; };
+  };
+
+  this.randomBestAlgorithm = function() {
+    var input = this.input.slice(),
+        best = [],
+        bestScore = 0;
+    
+    this.results = function() { 
+      shuffle(input);
+       
+      var results = solve(this.buckets, input),
+          newScore = score(this.buckets, results);
+      
+      if (newScore > bestScore) {
+        bestScore = newScore;
+        best = results;
+      }
+    
+      return best; 
+    };
+  };
+
+  this.sortAlgorithm = function() {
+    var input = this.input.slice();
+    input.sort(function(a,b){return b - a}); 
+
+    var results = solve(this.buckets, input);
+    this.results = function() { return results; };
+  };
+
+  this.generateInput = function(rnd) {
+    this.input = generateInput(items, maxItemSize, rnd);
+  };
+  
+  this.generateInput(rndLinear);
+  this.buckets = makeBuckets();
+  this.randomAlgorithm();
+}
+
+function Renderer(size, count, xFun, knapsack) {
+  return function(processing) {
+    var center = size / 2,
+        lineCount = 100;
+       
+    function drawBuckets(results) {
+      var segment = size / (count + 1),
+          y = segment;
+  
+      for (var i = 0; i < count; i++) {
+        var startX = center - xFun(y); 
+  
+        processing.stroke(100);        
+        processing.fill(255);
+        processing.rect(startX, y - segment, xFun(y) * 2, segment - 4); 
+  
+        if (results[i]) {
+          var result = results[i],
+              total = 0;
+              
+          processing.stroke(0);
+          processing.fill(128);
+          
+          result.forEach(function(blockSize) {
+            processing.rect(startX + total, y - segment, blockSize, segment - 4);
+            total += blockSize;
+          });
+        }
+        
+        y += segment;
+      }
+    }
+
+    function drawFun(lineCount) {
+      var segment = size / lineCount;  
+  
+      for (var y = 0; y < size; y += segment) {
+        processing.line(center - xFun(y), y, center - xFun(y + segment), y + segment);
+        processing.line(center + xFun(y), y, center + xFun(y + segment), y + segment);  
+      }
+    }  
+    
+    processing.draw = function() {  
+      processing.background(224);  
+      drawFun(100);
+      drawBuckets(knapsack.results());
+    };
+    
+    processing.setup = function() {
+      processing.size(size, size);
+    };  
+  };
+}
+
+document.getElementById('solve-random-many').onclick = function() {
+  knapsack.randomBestAlgorithm();  
+};
+
+document.getElementById('solve-random').onclick = function() {
+  knapsack.randomAlgorithm();  
+};
+
+document.getElementById('solve-sort').onclick = function() {
+  knapsack.sortAlgorithm();  
+};
+
+document.getElementById('new-input').onclick = function() {
+  knapsack.generateInput(rndLinear);  
+  knapsack.randomAlgorithm();
+};
+
+var knapsack = new Knapsack(size, buckets, parabola);
+var renderer = Renderer(size, buckets, parabola, knapsack);
+var canvas = document.getElementById('knapsack');
+var processing = new Processing(canvas, renderer);  
+  
+  </script>
+</body>
+</html>
